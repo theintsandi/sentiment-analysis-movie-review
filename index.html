@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CineRead — Movie Review Sentiment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0d0d0f;
+            --surface: #141416;
+            --surface2: #1c1c1f;
+            --border: rgba(255, 255, 255, 0.07);
+            --border2: rgba(255, 255, 255, 0.13);
+            --text: #f0ede8;
+            --muted: #7a7870;
+            --dim: #3a3835;
+            --gold: #c9a84c;
+            --gold-dim: #7a5e22;
+            --green: #4caf7d;
+            --green-dim: #1a3d2b;
+            --red: #e05a5a;
+            --red-dim: #3d1a1a;
+            --font-serif: 'Playfair Display', Georgia, serif;
+            --font-mono: 'IBM Plex Mono', monospace;
+            --font-sans: 'IBM Plex Sans', sans-serif;
+        }
+
+        html,
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            font-weight: 300;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ── Film grain overlay ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.6;
+        }
+
+        /* ── Layout ── */
+        .page {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 4rem 2rem 6rem;
+        }
+
+        /* ── Header ── */
+        header {
+            margin-bottom: 4rem;
+            animation: fadeDown 0.7s ease both;
+        }
+
+        .logo {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            color: var(--gold);
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo::before {
+            content: '';
+            display: inline-block;
+            width: 24px;
+            height: 1px;
+            background: var(--gold);
+        }
+
+        h1 {
+            font-family: var(--font-serif);
+            font-size: clamp(2.2rem, 5vw, 3.4rem);
+            font-weight: 400;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            margin-bottom: 0.75rem;
+        }
+
+        h1 em {
+            font-style: italic;
+            color: var(--gold);
+        }
+
+        .tagline {
+            font-size: 14px;
+            color: var(--muted);
+            font-weight: 300;
+            letter-spacing: 0.02em;
+        }
+
+        /* ── Input section ── */
+        .input-section {
+            animation: fadeUp 0.7s 0.15s ease both;
+        }
+
+        .input-label {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 0.6rem;
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 160px;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: var(--font-sans);
+            font-size: 15px;
+            font-weight: 300;
+            line-height: 1.7;
+            padding: 1.1rem 1.25rem;
+            resize: vertical;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--gold-dim);
+        }
+
+        textarea::placeholder {
+            color: var(--dim);
+            font-style: italic;
+        }
+
+        .input-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 0.75rem;
+        }
+
+        .char-count {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s;
+            border: 1px solid var(--border2);
+        }
+
+        .btn-clear {
+            padding: 9px 16px;
+            background: transparent;
+            color: var(--muted);
+        }
+
+        .btn-clear:hover {
+            color: var(--text);
+            border-color: var(--border2);
+        }
+
+        .btn-analyse {
+            padding: 9px 22px;
+            background: var(--gold);
+            color: #0d0d0f;
+            border-color: var(--gold);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-analyse:hover:not(:disabled) {
+            background: #dbb95a;
+            border-color: #dbb95a;
+        }
+
+        .btn-analyse:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn-analyse:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        /* spinner */
+        .spinner {
+            width: 10px;
+            height: 10px;
+            border: 1.5px solid rgba(0, 0, 0, 0.3);
+            border-top-color: #0d0d0f;
+            border-radius: 50%;
+            animation: spin 0.5s linear infinite;
+            display: none;
+        }
+
+        .spinner.on {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Divider ── */
+        .rule {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 2.5rem 0;
+            animation: fadeUp 0.5s ease both;
+        }
+
+        /* ── Result ── */
+        .result {
+            display: none;
+            animation: fadeUp 0.4s ease both;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .verdict-row {
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .verdict-label {
+            font-family: var(--font-serif);
+            font-size: clamp(1.6rem, 4vw, 2.4rem);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .verdict-label.positive {
+            color: var(--green);
+        }
+
+        .verdict-label.negative {
+            color: var(--red);
+        }
+
+        .verdict-conf {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* bars */
+        .bars {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 2rem;
+        }
+
+        .bar-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 44px;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .bar-name {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: right;
+        }
+
+        .bar-track {
+            height: 3px;
+            background: var(--surface2);
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 99px;
+            width: 0%;
+            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .bar-fill.positive {
+            background: var(--green);
+        }
+
+        .bar-fill.negative {
+            background: var(--red);
+        }
+
+        .bar-val {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* ── Error ── */
+        .error-box {
+            display: none;
+            background: var(--red-dim);
+            border: 1px solid rgba(224, 90, 90, 0.2);
+            border-radius: 4px;
+            padding: 0.85rem 1rem;
+            font-size: 13px;
+            color: var(--red);
+            font-family: var(--font-mono);
+            animation: fadeUp 0.3s ease both;
+        }
+
+        .error-box.show {
+            display: block;
+        }
+
+        /* ── History ── */
+        .history {
+            margin-top: 3.5rem;
+            animation: fadeUp 0.5s 0.1s ease both;
+        }
+
+        .history-header {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            color: var(--muted);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .history-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .hist-item {
+            display: grid;
+            grid-template-columns: 10px 1fr auto;
+            align-items: start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hist-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .hist-dot.positive {
+            background: var(--green);
+        }
+
+        .hist-dot.negative {
+            background: var(--red);
+        }
+
+        .hist-text {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hist-tag {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--dim);
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        /* ── Footer ── */
+        footer {
+            margin-top: 5rem;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--dim);
+            letter-spacing: 0.1em;
+            text-align: center;
+            animation: fadeUp 0.7s 0.3s ease both;
+        }
+
+        footer span {
+            color: var(--gold-dim);
+        }
+
+        /* ── Animations ── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        @keyframes fadeDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+
+        <header>
+            <div class="logo">CineRead</div>
+            <h1>What does the<br><em>audience feel?</em></h1>
+            <p class="tagline">Paste any movie review — we'll read between the lines.</p>
+        </header>
+
+        <section class="input-section">
+            <label class="input-label" for="reviewInput">Your review</label>
+            <textarea id="reviewInput" maxlength="2000" placeholder="e.g. " A slow-burn masterpiece — every frame drips
+                with intention, though the third act nearly unravels all the good will built before it.""></textarea>
+            <div class="input-footer">
+                <span class="char-count" id="charCount">0 / 2000</span>
+                <div class="btn-row">
+                    <button class="btn-clear" onclick="clearAll()">Clear</button>
+                    <button class="btn-analyse" id="analyseBtn" onclick="analyse()" disabled>
+                        <div class="spinner" id="spinner"></div>
+                        <span id="btnText">Analyse</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div id="resultArea" style="display:none">
+            <hr class="rule" />
+
+            <div class="error-box" id="errorBox"></div>
+
+            <div class="result" id="resultBox">
+                <div class="verdict-row">
+                    <span class="verdict-label" id="verdictLabel"></span>
+                    <span class="verdict-conf" id="verdictConf"></span>
+                </div>
+                <div class="bars">
+                    <div class="bar-row">
+                        <span class="bar-name">Positive</span>
+                        <div class="bar-track">
+                            <div class="bar-fill positive" id="posBar"></div>
+                        </div>
+                        <span class="bar-val" id="posVal">0%</span>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-name">Negative</span>
+                        <div class="bar-track">
+                            <div class="bar-fill negative" id="negBar"></div>
+                        </div>
+                        <span class="bar-val" id="negVal">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history" id="historySection" style="display:none">
+            <div class="history-header">Recent</div>
+            <div id="historyList"></div>
+        </div>
+
+        <footer>
+            Powered by <span>FastAPI</span> · Scikit-learn · IMDB Dataset
+        </footer>
+
+    </main>
+
+    <script>
+        const API_URL = 'http://localhost:8000/predict';
+        const history = [];
+
+        const input = document.getElementById('reviewInput');
+        const charCount = document.getElementById('charCount');
+        const btn = document.getElementById('analyseBtn');
+        const spinner = document.getElementById('spinner');
+        const btnText = document.getElementById('btnText');
+        const resultArea = document.getElementById('resultArea');
+        const resultBox = document.getElementById('resultBox');
+        const errorBox = document.getElementById('errorBox');
+
+        input.addEventListener('input', () => {
+            const len = input.value.length;
+            charCount.textContent = `${len} / 2000`;
+            btn.disabled = len < 5;
+        });
+
+        async function analyse() {
+            const review = input.value.trim();
+            if (!review) return;
+
+            setLoading(true);
+            resultArea.style.display = 'block';
+            resultBox.classList.remove('show');
+            errorBox.classList.remove('show');
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ review })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: res.statusText }));
+                    throw new Error(err.detail || 'Request failed');
+                }
+
+                const data = await res.json();
+                showResult(data, review);
+
+            } catch (e) {
+                const msg = e.message.includes('Failed to fetch')
+                    ? 'Cannot reach API. Make sure uvicorn is running on localhost:8000.'
+                    : e.message;
+                errorBox.textContent = msg;
+                errorBox.classList.add('show');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function showResult(data, review) {
+            const sentiment = data.sentiment || 'unknown';
+            const confidence = data.confidence;
+
+            const verdict = document.getElementById('verdictLabel');
+            verdict.textContent = sentiment === 'positive' ? 'Positive' : 'Negative';
+            verdict.className = `verdict-label ${sentiment}`;
+
+            document.getElementById('verdictConf').textContent =
+                confidence != null ? `${confidence.toFixed(1)}% confidence` : '';
+
+            const posScore = sentiment === 'positive'
+                ? (confidence ?? 72)
+                : 100 - (confidence ?? 72);
+            const negScore = 100 - posScore;
+
+            setTimeout(() => {
+                document.getElementById('posBar').style.width = posScore.toFixed(1) + '%';
+                document.getElementById('negBar').style.width = negScore.toFixed(1) + '%';
+            }, 50);
+
+            document.getElementById('posVal').textContent = posScore.toFixed(1) + '%';
+            document.getElementById('negVal').textContent = negScore.toFixed(1) + '%';
+
+            resultBox.classList.add('show');
+            addHistory(review, sentiment, confidence);
+        }
+
+        function setLoading(on) {
+            spinner.classList.toggle('on', on);
+            btnText.textContent = on ? 'Reading…' : 'Analyse';
+            btn.disabled = on;
+        }
+
+        function clearAll() {
+            input.value = '';
+            charCount.textContent = '0 / 2000';
+            btn.disabled = true;
+            resultArea.style.display = 'none';
+            resultBox.classList.remove('show');
+            errorBox.classList.remove('show');
+        }
+
+        function addHistory(review, sentiment, confidence) {
+            history.unshift({ review, sentiment, confidence });
+            if (history.length > 6) history.pop();
+
+            const section = document.getElementById('historySection');
+            const list = document.getElementById('historyList');
+            section.style.display = 'block';
+
+            list.innerHTML = history.map(h => `
+        <div class="hist-item">
+          <div class="hist-dot ${h.sentiment}"></div>
+          <div class="hist-text">${h.review.slice(0, 90)}${h.review.length > 90 ? '…' : ''}</div>
+          <div class="hist-tag">${h.sentiment}${h.confidence != null ? ' · ' + h.confidence.toFixed(0) + '%' : ''}</div>
+        </div>
+      `).join('');
+        }
+    </script>
+</body>
+
+</html>

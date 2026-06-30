@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Environment variables / secrets
+.env
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# DVC will manage data/models separately — don't manually ignore them here yet,
+# DVC's "dvc add" will auto-append the right entries once we run it
