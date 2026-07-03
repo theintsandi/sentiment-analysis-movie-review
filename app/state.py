@@ -2,24 +2,29 @@ import pickle
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import mlflow.sklearn
 from fastapi import FastAPI
 
 state: dict = {}
 
+MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
+REGISTERED_MODEL    = "models:/sentiment-model/Production"
+ENCODER_PATH        = Path("models/label_encoder.pkl")
+
 
 @asynccontextmanager
-async def lifespan(app:FastAPI):
-    model_path   = Path("models/sentiment_model.pkl")
-    encoder_path = Path("models/label_encoder.pkl")
+async def lifespan(app: FastAPI):
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-    if not model_path.exists() or not encoder_path.exists():
+    print(f"Loading model from registry: {REGISTERED_MODEL}")
+    state["model"] = mlflow.sklearn.load_model(REGISTERED_MODEL)
+
+    if not ENCODER_PATH.exists():
         raise RuntimeError(
-            "Model files not found in models/. Run 'python train.py' first."
+            "label_encoder.pkl not found in models/. Run 'python train_mlflow.py' first."
         )
+    state["encoder"] = pickle.load(ENCODER_PATH.open("rb"))
 
-    state["model"]   = pickle.load(model_path.open("rb"))
-    state["encoder"] = pickle.load(encoder_path.open("rb"))
-
-    print("Model loaded and ready.")
+    print("Model and encoder loaded and ready.")
     yield
     state.clear()
