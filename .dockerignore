@@ -1,0 +1,17 @@
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+
+.git/
+.gitignore
+
+data/
+
+train_mlflow.py
+
+.env
+*.log
+
+.DS_Store
