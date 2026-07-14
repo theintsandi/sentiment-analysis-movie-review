@@ -27,5 +27,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Training Pipeline
+      - name: Run Retraining Pipeline
         run: python scripts/pipeline.py

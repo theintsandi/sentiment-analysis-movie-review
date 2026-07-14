@@ -1,84 +1,93 @@
+import pickle
+from datetime import timedelta
+from pathlib import Path
+
 import mlflow
 import mlflow.sklearn
 import pandas as pd
 from prefect import flow, task
+from prefect.tasks import task_input_hash
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder
 
-# Your existing cleaning function
 from utils import clean_text
 
+MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
+EXPERIMENT_NAME     = "movie-sentiment"
+MODEL_NAME          = "sentiment-model"
+ACCURACY_THRESHOLD  = 0.88
 
-# -----------------------------
-# Task 1: Load and preprocess
-# -----------------------------
-@task
+
+@task(cache_key_fn=task_input_hash, cache_expiration=timedelta(hours=24))
 def load_and_preprocess(path: str):
     df = pd.read_csv(path)
     df["clean"] = df["review"].apply(clean_text)
+    encoder = LabelEncoder()
+    df["label"] = encoder.fit_transform(df["sentiment"])
+
+    # Save encoder for the API
+    Path("models").mkdir(exist_ok=True)
+    with open("models/label_encoder.pkl", "wb") as f:
+        pickle.dump(encoder, f)
+
     X = df["clean"]
-    y = df["sentiment"]
-    return train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y
-    )
-# -----------------------------------------
-# Task 2: Train model (most failure-prone)
-# -----------------------------------------
+    y = df["label"]
+    return train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+
 @task(retries=3, retry_delay_seconds=30)
 def train_model(X_train, y_train):
-    vectorizer = TfidfVectorizer(max_features=5000)
-    X_train_vec = vectorizer.fit_transform(X_train)
-    model = LogisticRegression(C=1.0, max_iter=1000)
-    model.fit(X_train_vec, y_train)
-    return model, vectorizer
-# -----------------------------
-# Task 3: Evaluate
-# -----------------------------
+    pipeline = Pipeline([
+        ("tfidf", TfidfVectorizer(max_features=10_000, ngram_range=(1, 2))),
+        ("model", LogisticRegression(C=1.0, max_iter=1000)),
+    ])
+    pipeline.fit(X_train, y_train)
+    return pipeline
+
+
 @task
-def evaluate_model(model, vectorizer, X_test, y_test):
-    X_test_vec = vectorizer.transform(X_test)
-    accuracy = model.score(X_test_vec, y_test)
+def evaluate_model(pipeline, X_test, y_test):
+    preds = pipeline.predict(X_test)
+    accuracy = accuracy_score(y_test, preds)
     print(f"Accuracy: {accuracy:.4f}")
     return accuracy
-# -----------------------------
-# Task 4: Register model
-# -----------------------------
+
+
 @task
-def register_model(model, accuracy):
-    with mlflow.start_run(run_name="prefect-pipeline"):
+def register_if_better(pipeline, accuracy: float):
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(EXPERIMENT_NAME)
+
+    if accuracy <= ACCURACY_THRESHOLD:
+        print(f"Accuracy {accuracy:.4f} below threshold — skipping registration")
+        return
+
+    with mlflow.start_run(run_name="prefect-auto-retrain"):
+        mlflow.log_param("model_type", "LogisticRegression")
+        mlflow.log_param("C", 1.0)
+        mlflow.log_param("max_iter", 1000)
         mlflow.log_metric("accuracy", accuracy)
-        mlflow.sklearn.log_model(model, artifact_path="model")
-        print("Model registered in MLflow")
-# -----------------------------
-# Flow
-# -----------------------------
-@flow(name="movieops-training-pipeline")
-def training_pipeline():
-    X_train, X_test, y_train, y_test = load_and_preprocess(
-        "data/IMDB_Dataset.csv"
-    )
-    model, vectorizer = train_model(
-        X_train,
-        y_train
-    )
-    accuracy = evaluate_model(
-        model,
-        vectorizer,
-        X_test,
-        y_test
-    )
-    if accuracy > 0.88:
-        register_model(model)
-        print("✅ Accuracy exceeded threshold. Model registered.")
-    else:
-        print(
-            f"⚠ Accuracy ({accuracy:.4f}) below threshold (0.88). "
-            "Keeping current production model."
-        )
+        mlflow.sklearn.log_model(pipeline, name="model")
+
+        # Save model locally for Docker
+        Path("models").mkdir(exist_ok=True)
+        with open("models/sentiment_model.pkl", "wb") as f:
+            pickle.dump(pipeline, f)
+
+        print(f"Model registered — accuracy: {accuracy:.4f}")
+
+
+@flow(name="movieops-retraining-pipeline")
+def retraining_pipeline(data_path: str = "data/IMDB_Dataset.csv"):
+    X_train, X_test, y_train, y_test = load_and_preprocess(data_path)
+    pipeline = train_model(X_train, y_train)
+    accuracy = evaluate_model(pipeline, X_test, y_test)
+    register_if_better(pipeline, accuracy)
+
+
 if __name__ == "__main__":
-    training_pipeline()
+    retraining_pipeline()
