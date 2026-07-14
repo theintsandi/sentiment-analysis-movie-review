@@ -94,4 +94,4 @@ def retraining_pipeline(data_path: str = "data/IMDB_Dataset.csv"):
 
 
 if __name__ == "__main__":
-    retraining_pipeline()
+    retraining_pipeline()# updated
