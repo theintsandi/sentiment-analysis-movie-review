@@ -28,5 +28,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Retraining Pipeline
-        run: python scripts/pipeline.py
         working-directory: ${{ github.workspace }}
+        run: |
+          python -c "import sys; from pathlib import Path; print(Path('scripts/pipeline.py').parent.parent.resolve())"
+          python -c "import os; print(os.getcwd()); print(os.listdir('.'))"
+          python scripts/pipeline.py
