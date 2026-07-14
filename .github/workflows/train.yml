@@ -29,7 +29,4 @@ jobs:
 
       - name: Run Retraining Pipeline
         working-directory: ${{ github.workspace }}
-        run: |
-          python -c "import sys; from pathlib import Path; print(Path('scripts/pipeline.py').parent.parent.resolve())"
-          python -c "import os; print(os.getcwd()); print(os.listdir('.'))"
-          python scripts/pipeline.py
+        run: python scripts/pipeline.py
