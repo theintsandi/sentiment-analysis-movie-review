@@ -1,4 +1,5 @@
 import pickle
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -13,6 +14,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
+
+# Add project root to path so utils.py is importable from scripts/
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils import clean_text
 
