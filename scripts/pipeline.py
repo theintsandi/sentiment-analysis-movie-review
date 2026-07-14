@@ -1,3 +1,4 @@
+import os
 import pickle
 import sys
 from datetime import timedelta
@@ -23,7 +24,7 @@ from utils import clean_text
 MLFLOW_TRACKING_URI = "sqlite:///mlflow.db"
 EXPERIMENT_NAME     = "movie-sentiment"
 MODEL_NAME          = "sentiment-model"
-ACCURACY_THRESHOLD  = 0.88
+ACCURACY_THRESHOLD = float(os.getenv("ACCURACY_THRESHOLD", "0.88"))
 
 
 @task(cache_key_fn=task_input_hash, cache_expiration=timedelta(hours=24))
@@ -86,7 +87,9 @@ def register_if_better(pipeline, accuracy: float):
 
 
 @flow(name="movieops-retraining-pipeline")
-def retraining_pipeline(data_path: str = "data/IMDB_Dataset.csv"):
+def retraining_pipeline(
+    data_path: str = os.getenv("DATA_PATH", "data/IMDB_Dataset.csv")
+):
     X_train, X_test, y_train, y_test = load_and_preprocess(data_path)
     pipeline = train_model(X_train, y_train)
     accuracy = evaluate_model(pipeline, X_test, y_test)
@@ -94,4 +97,4 @@ def retraining_pipeline(data_path: str = "data/IMDB_Dataset.csv"):
 
 
 if __name__ == "__main__":
-    retraining_pipeline()# updated
+    retraining_pipeline()

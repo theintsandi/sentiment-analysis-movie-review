@@ -7,6 +7,7 @@ on:
     paths:
       - "scripts/**"
       - "data/**"
+  workflow_dispatch:
 
 jobs:
   train:
@@ -27,6 +28,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Pull data with DVC
+        run: |
+          pip install dvc
+          dvc pull
+
       - name: Run Retraining Pipeline
         working-directory: ${{ github.workspace }}
+        env:
+          DATA_PATH: data/IMDB_Sample.csv
+          ACCURACY_THRESHOLD: "0.75"
         run: python scripts/pipeline.py
